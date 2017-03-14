@@ -56,7 +56,6 @@ void AFlockController::BeginPlay()
 // Called every frame
 void AFlockController::Tick(float DeltaTime)
 {
-	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "This is an on screen message!");
 	Super::Tick(DeltaTime);
 	for (UBoidComponent *b: boids){
 

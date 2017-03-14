@@ -4,7 +4,9 @@
 #include "BoidComponent.h"
 #include "FlockController.h"
 
-
+FVector Vec3ToFVector(Vec3 v) {
+	return FVector(v.x, v.y, v.z);
+}
 FVector circle(UBoidComponent *b, float DeltaTime) {
 	/*if (DeltaTime < 50)
 		return Vec3(0.05, 0.0, 0.0);
@@ -17,7 +19,7 @@ FVector circle(UBoidComponent *b, float DeltaTime) {
 	else {
 		DeltaTime = 0;
 		return Vec3();*/
-	return FVector(.1,0,0);
+	return FVector(.1,.1,-.1);
 }
 
 // Sets default values for this component's properties
@@ -26,10 +28,14 @@ UBoidComponent::UBoidComponent() {
 	
 	flockKey = "flock1";
 	pos = Vec3();
-	velocity = Vec3();
+	velocity = Vec3(0,0,0);
 	forward = Vec3(1.0, 0.0, 0.0); 
-	up = Vec3(0.0, 1.0, 0.0);
-	side = Vec3(0.0, 0.0, 1.0);
+	up = Vec3(0.0, 0, 1.0);
+	side = Vec3(0.0, 1.0, 0);
+	newForward = 1 * forward;//troll cloning of forward
+	newSide = 1 * side;
+	newUp = 1 * up;
+
 	max_speed = 1.0;
 	max_accel = 0.1;
 	behaviors = std::vector<FVector(*)(UBoidComponent *, float)>();
@@ -58,10 +64,11 @@ void UBoidComponent::fly()
 	newVelocity = (velocity + acc).truncate(max_speed);
 	newPos = pos + velocity;
 	// Reorient
-	newForward = velocity.normalized();
+	newForward = newVelocity.normalized();
 	Vec3 aprx_up = up; // Should be a weighted sum of acc, acc due to gravity, and the old up
-	newSide = forward.cross(aprx_up);
-	newUp = forward.cross(side);
+	newSide = forward.cross(-1*aprx_up);
+	newUp = up;//forward.cross(side);
+	
 }
 
 void UBoidComponent::applyFly()
@@ -71,9 +78,15 @@ void UBoidComponent::applyFly()
 	velocity = newVelocity;
 	forward = newForward;
 	up = newUp;
+
 	side = newSide;
 	FVector newpos = FVector(pos.x, pos.y, pos.z);
 	GetAttachParent()->SetWorldLocation(newpos);
+
+	FRotator rot = FMatrix(Vec3ToFVector(forward), Vec3ToFVector(side), 
+		Vec3ToFVector(up), FVector::ZeroVector).Rotator();
+
+	GetAttachParent()->SetWorldRotation(rot);
 }
 
 // Called when the game starts
