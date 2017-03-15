@@ -1,4 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
+#define print(text) if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.5, FColor::White,text)
 
 #include "BoidStorm.h"
 #include "BoidComponent.h"
@@ -19,7 +20,52 @@ FVector circle(UBoidComponent *b, float DeltaTime) {
 	else {
 		DeltaTime = 0;
 		return Vec3();*/
-	return FVector(.1,.1,-.1);
+	FVector circleReturn = FVector(0, 0, 0)*DeltaTime;
+	return circleReturn;
+}
+FVector attract(UBoidComponent *b, float DeltaTime) {
+	FVector force = FVector(0,0,0);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
+	for (UBoidComponent* otherBoid : neighbors) {
+		if (otherBoid != b) {//gotta check your not comparing to yourself!
+			FVector dist = (otherBoid->pos - b->pos);
+			float lengthSquared = dist.Size()*dist.Size();//TODO: fix magic numbers
+			force = dist * 1 / lengthSquared;
+		}
+		else {
+		}
+	}
+	return force;
+}
+
+FVector repell(UBoidComponent *b, float DeltaTime) {
+	FVector force = FVector(0, 0, 0);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
+	for (UBoidComponent* otherBoid : neighbors) {
+		if (otherBoid != b) {//gotta check your not comparing to yourself!
+			FVector dist = (otherBoid->pos - b->pos);
+			float lengthCubed = dist.Size()*dist.Size()*dist.Size();//TODO: fix magic numbers
+			force = dist * -1 / (lengthCubed*.01);
+		}
+		else {
+		}
+	}
+	return force;
+}
+
+FVector matchVel(UBoidComponent *b, float DeltaTime) {
+	FVector force = FVector(0, 0, 0);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
+	for (UBoidComponent* otherBoid : neighbors) {
+		if (otherBoid != b) {//gotta check your not comparing to yourself!
+			FVector dist = (otherBoid->pos - b->pos);
+			float distSquared = dist.Size()*dist.Size();//TODO: fix magic numbers
+			force = otherBoid->velocity * 1 / (distSquared);
+		}
+		else {
+		}
+	}
+	return force;
 }
 
 // Sets default values for this component's properties
@@ -27,19 +73,22 @@ UBoidComponent::UBoidComponent() {
 	PrimaryComponentTick.bCanEverTick = true;
 	
 	flockKey = "flock1";
-	pos = Vec3();
-	velocity = Vec3(0,0,0);
-	forward = Vec3(1.0, 0.0, 0.0); 
-	up = Vec3(0.0, 0, 1.0);
-	side = Vec3(0.0, 1.0, 0);
+	velocity = FVector(0,0,0);
+	forward = FVector(1.0, 0.0, 0.0);
+	up = FVector(0.0, 0, 1.0);
+	side = FVector(0.0, 1.0, 0);
+	accel = FVector(0, 0, 0);
 	newForward = 1 * forward;//troll cloning of forward
 	newSide = 1 * side;
 	newUp = 1 * up;
 
 	max_speed = 1.0;
 	max_accel = 0.1;
+
 	behaviors = std::vector<FVector(*)(UBoidComponent *, float)>();
 	behaviors.push_back(&circle);
+	behaviors.push_back(&attract);
+	behaviors.push_back(&repell);
 
 }
 
@@ -50,7 +99,7 @@ FVector UBoidComponent::GetPos()
 
 FVector UBoidComponent::behave(float DeltaTime)
 {
-	FVector acc = FVector();
+	FVector acc = FVector(0,0,0);
 	for (FVector(*behavior)(UBoidComponent *, float time) : behaviors) {
 		acc = acc + behavior(this, DeltaTime);	
 	}
@@ -60,14 +109,14 @@ FVector UBoidComponent::behave(float DeltaTime)
 //calculate and set position, velocity and orientation
 void UBoidComponent::fly()
 {
-	Vec3 acc = accel.truncate(max_accel * max_speed);
-	newVelocity = (velocity + acc).truncate(max_speed);
+	FVector acc = accel.GetClampedToMaxSize(max_accel * max_speed);
+	newVelocity = (velocity + acc).GetClampedToMaxSize(max_speed);
 	newPos = pos + velocity;
 	// Reorient
-	newForward = newVelocity.normalized();
-	Vec3 aprx_up = up; // Should be a weighted sum of acc, acc due to gravity, and the old up
-	newSide = forward.cross(-1*aprx_up);
-	newUp = up;//forward.cross(side);
+	newForward = newVelocity.GetSafeNormal();
+	FVector aprx_up = up; // Should be a weighted sum of acc, acc due to gravity, and the old up
+	newSide = FVector::CrossProduct(forward, aprx_up);
+	newUp = FVector::CrossProduct(forward, side);
 	
 }
 
@@ -75,17 +124,15 @@ void UBoidComponent::applyFly()
 {
 
 	pos = newPos;
+
 	velocity = newVelocity;
 	forward = newForward;
 	up = newUp;
 
 	side = newSide;
-	FVector newpos = FVector(pos.x, pos.y, pos.z);
-	GetAttachParent()->SetWorldLocation(newpos);
-
-	FRotator rot = FMatrix(Vec3ToFVector(forward), Vec3ToFVector(side), 
-		Vec3ToFVector(up), FVector::ZeroVector).Rotator();
-
+	
+	GetAttachParent()->SetWorldLocation(pos);
+	FRotator rot = FMatrix(forward, side, up, FVector::ZeroVector).Rotator();
 	GetAttachParent()->SetWorldRotation(rot);
 }
 
@@ -94,6 +141,7 @@ void UBoidComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	pos = ComponentToWorld.GetLocation();
 	AFlockController::registerBoid(this, flockKey, GetWorld());
 }
 
@@ -101,11 +149,13 @@ void UBoidComponent::BeginPlay()
 void UBoidComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	FVector a = behave(DeltaTime);
-	accel = Vec3(a.X, a.Y, a.Z);
+	accel = behave(DeltaTime);
 	fly();
 }
 
 std::vector<UBoidComponent*> UBoidComponent::get_neighbors(float radius) {
 	return AFlockController::get_neighbors(pos, radius, flockKey);
 }
+
+
+//			GEngine->AddOnScreenDebugMessage(-1, 1.5, FColor::White, FString::SanitizeFloat(lengthSquared));

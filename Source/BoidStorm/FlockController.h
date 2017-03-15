@@ -23,7 +23,7 @@ public:
 	std::vector<UBoidComponent*> boids;
 	static AFlockController* getControllerByKey(std::string key);
 	static void registerBoid(UBoidComponent * b, std::string key, UWorld* world);
-	static std::vector<UBoidComponent*> get_neighbors(Vec3 pos, float radius, std::string key);
+	static std::vector<UBoidComponent*> get_neighbors(FVector pos, float radius, std::string key);
 	static std::map<std::string, AFlockController*> controllers;
 protected:
 	

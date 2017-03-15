@@ -13,25 +13,26 @@ class BOIDSTORM_API UBoidComponent : public USceneComponent
 	GENERATED_BODY()
 
 public:	
-	
 	std::string flockKey;
-	Vec3 pos;
-	Vec3 velocity;
+	FVector pos;
+	FVector velocity;
 
-	Vec3 forward; // x
-	Vec3 up; // y
-	Vec3 side; // z
+	FVector forward; // x
+	FVector up; // y
+	FVector side; // z
 
-	Vec3 newPos;
-	Vec3 newVelocity;
+	FVector newPos;
+	FVector newVelocity;
 
-	Vec3 newForward; // x
-	Vec3 newUp; // y
-	Vec3 newSide; // z
-
+	FVector newForward; // x
+	FVector newUp; // y
+	FVector newSide; // z
+	UPROPERTY(EditAnywhere)//this can be used on 
+	//unreal types and primitive types to expose 
+	//them in the edditor
 	float max_speed;
+	UPROPERTY(EditAnywhere)
 	float max_accel; // Some fraction of max_speed
-
 	std::vector<FVector(*)(UBoidComponent *,float time)> behaviors;
 	
 	UBoidComponent();
@@ -41,7 +42,7 @@ public:
 	FVector behave(float DeltaTime);
 	std::vector<UBoidComponent*> get_neighbors(float radius);
 protected:
-	Vec3 accel;
+	FVector accel;
 	//position and rotation can be found using
 	//ComponentToWorld.GetLocation() gives mutable position vector (in world space)
 	//ComponentToWorld.Getrotation() gives mutable rotation quaternion (in world space)

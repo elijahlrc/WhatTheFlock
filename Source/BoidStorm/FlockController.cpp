@@ -11,10 +11,14 @@ AFlockController* AFlockController::getControllerByKey(std::string key)
 }
 void AFlockController::registerBoid(UBoidComponent *b, std::string key, UWorld* world)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Registering boid with name %s"), &key)
 	if (controllers.count(key) == 1) {
 		controllers[key]->boids.push_back(b);
+		UE_LOG(LogTemp, Warning, TEXT("adding to existing controller"))
+		UE_LOG(LogTemp, Warning, TEXT("Controller now has %d boids"), controllers[key]->boids.size())
 	}
 	else {
+		UE_LOG(LogTemp, Warning, TEXT("Creating new controller"))
 		FVector Location(0.0f, 0.0f, 0.0f);
 		FRotator Rotation(0.0f, 0.0f, 0.0f);
 		FActorSpawnParameters SpawnInfo;
@@ -22,7 +26,6 @@ void AFlockController::registerBoid(UBoidComponent *b, std::string key, UWorld* 
 		controllers.insert(std::make_pair(key, newFc));
 		controllers[key]->boids.push_back(b);
 	}
-	
 }
 // Sets default values
 AFlockController::AFlockController()
@@ -34,12 +37,12 @@ AFlockController::AFlockController()
 	boids = std::vector<UBoidComponent*>();
 }
 
-std::vector<UBoidComponent*> AFlockController::get_neighbors(Vec3 pos, float radius, std::string key)
+std::vector<UBoidComponent*> AFlockController::get_neighbors(FVector pos, float radius, std::string key)
 {
 
 	std::vector<UBoidComponent*> neighbors;
 	for (UBoidComponent* b : controllers[key]->boids) {
-		if ((pos-b->pos).length() < radius) {
+		if ((pos-b->pos).Size() < radius) {
 			neighbors.push_back(b);
 		}
 	}
