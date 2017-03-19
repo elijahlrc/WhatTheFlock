@@ -17,6 +17,7 @@ void AFlockController::registerBoid(UBoidComponent *b, std::string key, UWorld* 
 		UE_LOG(LogTemp, Warning, TEXT("adding to existing controller"))
 		UE_LOG(LogTemp, Warning, TEXT("Controller now has %d boids"), controllers[key]->boids.size())
 	}
+
 	else {
 		UE_LOG(LogTemp, Warning, TEXT("Creating new controller"))
 		FVector Location(0.0f, 0.0f, 0.0f);

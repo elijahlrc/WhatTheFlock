@@ -8,6 +8,10 @@
 FVector Vec3ToFVector(Vec3 v) {
 	return FVector(v.x, v.y, v.z);
 }
+FVector attractToCenter(UBoidComponent *b, float DeltaTime) {
+	return DeltaTime *-.05 *  b->pos;
+}
+
 FVector circle(UBoidComponent *b, float DeltaTime) {
 	/*if (DeltaTime < 50)
 		return Vec3(0.05, 0.0, 0.0);
@@ -28,29 +32,39 @@ FVector attract(UBoidComponent *b, float DeltaTime) {
 	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
 	for (UBoidComponent* otherBoid : neighbors) {
 		if (otherBoid != b) {//gotta check your not comparing to yourself!
-			FVector dist = (otherBoid->pos - b->pos);
-			float lengthSquared = dist.Size()*dist.Size();//TODO: fix magic numbers
-			force = dist * 1 / lengthSquared;
+			//FVector dist = (otherBoid->pos - b->pos);
+			//float lengthSquared = dist.Size()*dist.Size();//TODO: fix magic numbers
+			//force = dist * 1 / lengthSquared;
+			force = force + otherBoid->pos;
 		}
 		else {
 		}
 	}
-	return force;
+
+
+	if (neighbors.size() > 1) {
+		force = force * (1.0 / (neighbors.size() - 1.0))- b->pos;
+	}
+	else {
+		return FVector(0, 0, 0);
+	}
+
+	return .5 * force*DeltaTime;
 }
 
 FVector repell(UBoidComponent *b, float DeltaTime) {
 	FVector force = FVector(0, 0, 0);
-	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(300);
 	for (UBoidComponent* otherBoid : neighbors) {
 		if (otherBoid != b) {//gotta check your not comparing to yourself!
 			FVector dist = (otherBoid->pos - b->pos);
-			float lengthCubed = dist.Size()*dist.Size()*dist.Size();//TODO: fix magic numbers
-			force = dist * -1 / (lengthCubed*.01);
+			float lengthCubed = dist.Size()*dist.Size();//TODO: fix magic numbers
+			force = dist * -40000 / (lengthCubed);
 		}
 		else {
 		}
 	}
-	return force;
+	return force*DeltaTime;
 }
 
 FVector matchVel(UBoidComponent *b, float DeltaTime) {
@@ -58,14 +72,20 @@ FVector matchVel(UBoidComponent *b, float DeltaTime) {
 	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
 	for (UBoidComponent* otherBoid : neighbors) {
 		if (otherBoid != b) {//gotta check your not comparing to yourself!
-			FVector dist = (otherBoid->pos - b->pos);
-			float distSquared = dist.Size()*dist.Size();//TODO: fix magic numbers
-			force = otherBoid->velocity * 1 / (distSquared);
+			//FVector dist = (otherBoid->pos - b->pos);
+			//float distSquared = dist.Size()*dist.Size();//TODO: fix magic numbers
+			force = otherBoid->velocity;
 		}
 		else {
 		}
 	}
-	return force;
+	if (neighbors.size() > 1) {
+		force = force * (1.0 / (neighbors.size() - 1.0)) - b->velocity;
+	}
+	else {
+		return FVector(0, 0, 0);
+	}
+	return 700 * force*DeltaTime;
 }
 
 // Sets default values for this component's properties
@@ -77,21 +97,21 @@ UBoidComponent::UBoidComponent() {
 	forward = FVector(1.0, 0.0, 0.0);
 	up = FVector(0.0, 0, 1.0);
 	side = FVector(0.0, 1.0, 0);
-	accel = FVector(0, 0, 0);
+	accel = FVector(1, 0, 0);
 	newForward = 1 * forward;//troll cloning of forward
 	newSide = 1 * side;
 	newUp = 1 * up;
 
 	max_speed = 1.0;
 	max_accel = 0.1;
-
 	behaviors = std::vector<FVector(*)(UBoidComponent *, float)>();
-	behaviors.push_back(&circle);
+	//behaviors.push_back(&circle);
 	behaviors.push_back(&attract);
+	behaviors.push_back(&matchVel);
 	behaviors.push_back(&repell);
+	behaviors.push_back(&attractToCenter);
 
 }
-
 FVector UBoidComponent::GetPos()
 {
 	return ComponentToWorld.GetLocation();
@@ -114,26 +134,28 @@ void UBoidComponent::fly()
 	newPos = pos + velocity;
 	// Reorient
 	newForward = newVelocity.GetSafeNormal();
-	FVector aprx_up = up; // Should be a weighted sum of acc, acc due to gravity, and the old up
-	newSide = FVector::CrossProduct(forward, aprx_up);
-	newUp = FVector::CrossProduct(forward, side);
+	if (newForward.Size() < .0001) {
+		newForward = forward;
+	}
+	FVector aprx_up = up.GetSafeNormal(); // Should be a weighted sum of acc, acc due to gravity, and the old up
+	newSide = FVector::CrossProduct(forward, aprx_up).GetSafeNormal();
+	//newSide = side;
+	newUp = FVector::CrossProduct(forward, side).GetSafeNormal();
 	
 }
 
 void UBoidComponent::applyFly()
 {
-
 	pos = newPos;
-
 	velocity = newVelocity;
-	forward = newForward;
+	forward = newForward;//TODO: does this help?
 	up = newUp;
 
 	side = newSide;
 	
-	GetAttachParent()->SetWorldLocation(pos);
-	FRotator rot = FMatrix(forward, side, up, FVector::ZeroVector).Rotator();
-	GetAttachParent()->SetWorldRotation(rot);
+	FRotator rot = FMatrix(side, up, -forward, FVector::ZeroVector).Rotator();
+	GetAttachParent()->SetWorldLocationAndRotation(pos, rot);
+	GetAttachParent()->MoveComponent
 }
 
 // Called when the game starts
