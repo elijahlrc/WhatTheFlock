@@ -4,6 +4,7 @@
 #include "NathanGeometry.h"
 #include <vector>
 #include <string>
+#include <queue>
 #include "Components/SceneComponent.h"
 #include "BoidComponent.generated.h"
 
@@ -34,13 +35,17 @@ public:
 	UPROPERTY(EditAnywhere)
 	float max_accel; // Some fraction of max_speed
 	std::vector<FVector(*)(UBoidComponent *,float time)> behaviors;
-	
+
+	std::queue<FVector> pastVels;
+	FVector averagedVel;
+
 	UBoidComponent();
 	FVector GetPos();
 	void fly();//calculate new locations
 	void applyFly();//move to new calculated locations
 	FVector behave(float DeltaTime);
 	std::vector<UBoidComponent*> get_neighbors(float radius);
+	
 protected:
 	FVector accel;
 	//position and rotation can be found using

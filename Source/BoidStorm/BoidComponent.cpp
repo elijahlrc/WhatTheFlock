@@ -4,13 +4,30 @@
 #include "BoidStorm.h"
 #include "BoidComponent.h"
 #include "FlockController.h"
+#include <cmath>
 
-FVector Vec3ToFVector(Vec3 v) {
-	return FVector(v.x, v.y, v.z);
-}
+//some constant coificents:
+float attractRange = 4000;
+float repelltRange = 4000;
+float matchVelRange = 1700;
+float eAttractRange = 1700;
+
+float centerAttractionForce = -5;
+float circleCenterForce = 1;
+
+
+float attractForce = 20;
+float repellForce = -23000;
+float matchVelForce = 400;
+float eAttractForce = 1;
+
 FVector attractToCenter(UBoidComponent *b, float DeltaTime) {
-	return DeltaTime *-.05 *  b->pos;
+	return DeltaTime * centerAttractionForce *  b->pos;
 }
+FVector circleCenter(UBoidComponent *b, float DeltaTime) {
+	return DeltaTime * circleCenterForce *  FVector::CrossProduct(b->pos, FVector::UpVector);
+}
+
 
 FVector circle(UBoidComponent *b, float DeltaTime) {
 	/*if (DeltaTime < 50)
@@ -29,7 +46,7 @@ FVector circle(UBoidComponent *b, float DeltaTime) {
 }
 FVector attract(UBoidComponent *b, float DeltaTime) {
 	FVector force = FVector(0,0,0);
-	std::vector<UBoidComponent*> neighbors = b->get_neighbors(1000);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(attractRange);
 	for (UBoidComponent* otherBoid : neighbors) {
 		if (otherBoid != b) {//gotta check your not comparing to yourself!
 			//FVector dist = (otherBoid->pos - b->pos);
@@ -49,22 +66,41 @@ FVector attract(UBoidComponent *b, float DeltaTime) {
 		return FVector(0, 0, 0);
 	}
 
-	return .5 * force*DeltaTime;
+	return attractForce*force*DeltaTime;
+}
+
+FVector elijahsAttract(UBoidComponent *b, float DeltaTime) {
+	FVector force = FVector(0, 0, 0);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(eAttractRange);
+	for (UBoidComponent* otherBoid : neighbors) {
+		if (otherBoid != b) {//gotta check your not comparing to yourself!
+			FVector dist = (otherBoid->pos - b->pos);
+			float lengthToPower = std::pow(dist.Size(),1.5);//TODO: fix magic numbers
+			force = dist / lengthToPower;
+		}
+	}
+	if (neighbors.size() > 1) {
+		force = force * (1.0 / (neighbors.size() - 1.0)) - b->pos;
+	}
+	else {
+		return FVector(0, 0, 0);
+	}
+	return eAttractForce*force*DeltaTime;
 }
 
 FVector repell(UBoidComponent *b, float DeltaTime) {
 	FVector force = FVector(0, 0, 0);
-	std::vector<UBoidComponent*> neighbors = b->get_neighbors(300);
+	std::vector<UBoidComponent*> neighbors = b->get_neighbors(repelltRange);
 	for (UBoidComponent* otherBoid : neighbors) {
 		if (otherBoid != b) {//gotta check your not comparing to yourself!
 			FVector dist = (otherBoid->pos - b->pos);
-			float lengthCubed = dist.Size()*dist.Size();//TODO: fix magic numbers
-			force = dist * -40000 / (lengthCubed);
+			float lengthCubed = std::pow(dist.Size()/100,2);
+			force = dist / (lengthCubed);
 		}
 		else {
 		}
 	}
-	return force*DeltaTime;
+	return repellForce * force * DeltaTime;
 }
 
 FVector matchVel(UBoidComponent *b, float DeltaTime) {
@@ -85,7 +121,7 @@ FVector matchVel(UBoidComponent *b, float DeltaTime) {
 	else {
 		return FVector(0, 0, 0);
 	}
-	return 700 * force*DeltaTime;
+	return matchVelForce * force * DeltaTime;
 }
 
 // Sets default values for this component's properties
@@ -101,15 +137,21 @@ UBoidComponent::UBoidComponent() {
 	newForward = 1 * forward;//troll cloning of forward
 	newSide = 1 * side;
 	newUp = 1 * up;
-
+	averagedVel = FVector(0, 0, 0);
 	max_speed = 1.0;
 	max_accel = 0.1;
 	behaviors = std::vector<FVector(*)(UBoidComponent *, float)>();
-	//behaviors.push_back(&circle);
+
+	pastVels = std::queue<FVector>();
+	for (int i = 0; i < 20; i++) {
+		pastVels.push(FVector(0, 0, 0));
+	}
 	behaviors.push_back(&attract);
 	behaviors.push_back(&matchVel);
 	behaviors.push_back(&repell);
 	behaviors.push_back(&attractToCenter);
+	behaviors.push_back(&circleCenter);
+	//behaviors.push_back(&elijahsAttract);
 
 }
 FVector UBoidComponent::GetPos()
@@ -129,9 +171,12 @@ FVector UBoidComponent::behave(float DeltaTime)
 //calculate and set position, velocity and orientation
 void UBoidComponent::fly()
 {
-	FVector acc = accel.GetClampedToMaxSize(max_accel * max_speed);
+	pastVels.push(accel);
+	averagedVel = averagedVel - pastVels.front() + accel;
+	pastVels.pop();
+	FVector acc = ((1.0/20000.0) * averagedVel).GetClampedToMaxSize(max_accel * max_speed);
 	newVelocity = (velocity + acc).GetClampedToMaxSize(max_speed);
-	newPos = pos + velocity;
+
 	// Reorient
 	newForward = newVelocity.GetSafeNormal();
 	if (newForward.Size() < .0001) {
@@ -141,21 +186,20 @@ void UBoidComponent::fly()
 	newSide = FVector::CrossProduct(forward, aprx_up).GetSafeNormal();
 	//newSide = side;
 	newUp = FVector::CrossProduct(forward, side).GetSafeNormal();
-	
 }
 
 void UBoidComponent::applyFly()
 {
-	pos = newPos;
+	//pos = newPos;
 	velocity = newVelocity;
 	forward = newForward;//TODO: does this help?
 	up = newUp;
 
 	side = newSide;
-	
 	FRotator rot = FMatrix(side, up, -forward, FVector::ZeroVector).Rotator();
-	GetAttachParent()->SetWorldLocationAndRotation(pos, rot);
-	GetAttachParent()->MoveComponent
+	//GetAttachParent()->SetWorldLocationAndRotation(pos, rot);
+	GetAttachParent()->MoveComponent(velocity, forward.Rotation(), false);
+	pos = ComponentToWorld.GetLocation();
 }
 
 // Called when the game starts
