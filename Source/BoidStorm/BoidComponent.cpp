@@ -9,7 +9,7 @@
 //some constant coificents:
 float attractRange = 4000;
 float repelltRange = 4000;
-float matchVelRange = 1700;
+float matchVelRange = 2700;
 float eAttractRange = 1700;
 
 float centerAttractionForce = -5;
@@ -17,8 +17,8 @@ float circleCenterForce = 1;
 
 
 float attractForce = 20;
-float repellForce = -23000;
-float matchVelForce = 400;
+float repellForce = -37000;
+float matchVelForce = 200;
 float eAttractForce = 1;
 
 FVector attractToCenter(UBoidComponent *b, float DeltaTime) {
